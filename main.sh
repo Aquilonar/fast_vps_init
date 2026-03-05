@@ -160,6 +160,7 @@ HARD_SUB|SSH 端口修改|hard/port.sh|script|ALL
 HARD_SUB|禁用密码登录|hard/auth.sh|script|ALL
 HARD_SUB|UFW 防火墙配置|hard/ufw.sh|script|ALL
 HARD_SUB|Fail2ban 防暴力破解|hard/f2b.sh|script|ALL
+HARD_SUB|CrowdSec 社区化防固|hard/crowdsec.sh|script|ALL
 
 RUN_SUB|Docker & Compose 环境|run/docker.sh|script|ALL
 RUN_SUB|Node.js (NVM版) 安装|run/node.sh|script|ALL

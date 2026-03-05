@@ -9,6 +9,8 @@ C_RED="\033[1;31m"
 C_CYAN="\033[1;36m"
 C_GRAY="\033[90m"
 
+# 辅助函数
+log()  { echo -e "${C_GRAY}[$(date +'%H:%M:%S')]${C_RESET} $*"; }
 ok()   { echo -e "${C_GREEN}✅ $*${C_RESET}"; }
 err()  { echo -e "${C_RED}❌ $*${C_RESET}" >&2; }
 warn() { echo -e "${C_YELLOW}⚠️  $*${C_RESET}"; }
@@ -21,13 +23,20 @@ run_bbr3_setup() {
     log "正在检查环境依赖 (curl)..."
     if ! command -v curl >/dev/null 2>&1; then
         warn "未发现 curl，尝试安装..."
-        (apt-get update && apt-get install -y curl) || (yum install -y curl) || { err "无法安装 curl，请手动处理"; return 1; }
+        # 兼容 Debian/Ubuntu 和 CentOS/RedHat
+        if command -v apt-get >/dev/null 2>&1; then
+            apt-get update && apt-get install -y curl
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y curl
+        else
+            err "无法安装 curl，请手动处理"
+            return 1
+        fi
     fi
 
     log "开始下载脚本 (带重试机制)..."
     # --retry 5: 重试5次; --connect-timeout 10: 连接超时10秒
     if ! curl -sL --retry 5 --connect-timeout 10 "$script_url" -o "$local_script"; then
-        # 如果从 GitHub 下载失败，尝试 kejilion.sh 备用域名
         warn "主地址下载失败，尝试备用地址..."
         if ! curl -sL --retry 3 "http://kejilion.sh" -o "$local_script"; then
             err "脚本下载失败，请检查网络连接"
@@ -37,13 +46,11 @@ run_bbr3_setup() {
 
     log "下载完成，准备执行 BBR3 配置..."
     
-    # 鲁棒性关键：不直接使用 <(curl)，而是下载后本地执行
-    # 这样即使网络在执行中途断开，脚本逻辑依然完整
+    # 鲁棒性关键：本地执行，防止执行中途网络断开导致逻辑残缺
     if [[ -f "$local_script" ]]; then
         chmod +x "$local_script"
         
-        # 使用 bash 执行并传入 bbr3 参数
-        # 这里使用 try-catch 逻辑
+        # 捕获执行过程，失败则清理并退出
         if bash "$local_script" bbr3; then
             ok "BBR3 脚本执行成功"
         else
@@ -61,14 +68,13 @@ run_bbr3_setup() {
     return 0
 }
 
-log() {
-    echo -e "\033[90m[$(date +'%H:%M:%S')]\033[0m $*"
-}
-
 # 主程序逻辑
 main() {
     # 权限检查
-    [[ "$EUID" -ne 0 ]] && { err "请使用 root 权限运行"; exit 1; }
+    if [[ "$EUID" -ne 0 ]]; then
+        err "请使用 root 权限运行"
+        exit 1
+    fi
 
     echo -e "${C_CYAN}即将开始配置 BBR3 加速...${C_RESET}"
     
